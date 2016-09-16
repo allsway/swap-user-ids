@@ -194,7 +194,7 @@
 					echo $match . PHP_EOL;
 					var_dump($patron_xml->user_identifiers);
 					$dom = dom_import_simplexml($patron_xml->user_identifiers->user_identifier[$match]);
-       				$dom->parentNode->removeChild($dom);
+       					$dom->parentNode->removeChild($dom);
 
 					$return_xml =  makexml($patron_xml);
 					var_dump($return_xml);
@@ -203,22 +203,19 @@
 					
 					// Make PUT change request
 					$response = putxml($puturl,$return_xml);										
-					var_dump($response);
-					
+
 					// Second get/put
 					$updated_user_url = $baseurl . '/almaws/v1/users/' . $primary_id . '?apikey='.$key;
-			     	$updated_user_xml = getxml($updated_user_url);
+			     		$updated_user_xml = getxml($updated_user_url);
 
 					$updated_user_xml->primary_id = $new_primary;
 					$updated_return_xml = makexml($updated_user_xml);
-					var_dump($updated_return_xml);
 					$second_response = putxml($puturl,$updated_return_xml);
-					var_dump($second_response);
-					
+
 					
 					// Third call to user API 
 					$new_user_url = $baseurl . '/almaws/v1/users/' . $new_primary . '?apikey='.$key;
-			     	$second_xml = getxml($new_user_url);
+			     		$second_xml = getxml($new_user_url);
 
 					$new_identifier = $second_xml->user_identifiers->addChild('user_identifier');
 					$new_identifier->addAttribute('segment_type', 'External');
@@ -230,11 +227,8 @@
 					$third_return_xml = makexml($second_xml);
 					var_dump($third_return_xml);
 					$final_response = putxml($new_user_url,$third_return_xml);
-					var_dump($final_response);
-					
-					
-				}	
 
+				}	
 			}
 		}
 	//	$offset += 100;
