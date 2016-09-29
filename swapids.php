@@ -1,6 +1,9 @@
 <?php
 	
-
+/*
+	Swaps the primary user id value with a specified alternative ID field.  Makes multiple commits to user record in order to change the user ID fields. 
+	
+*/
 
 /*
 ***************
@@ -19,19 +22,19 @@
 	        try
 	        {
 	        	// Check for limit error
-				$xml = new SimpleXMLElement($result);
-				if ($xml->errorsExist == "true" )
+			$xml = new SimpleXMLElement($result);
+			if ($xml->errorsExist == "true" )
+			{
+				shell_exec('echo `date` ' . $xml->errorList->error->errorCode . " : " .  $xml->errorList->error->errorMessage .  ' >> mattype_errors.log');
+				if($xml->errorList->error->errorCode == "DAILY_THRESHOLD" || $xml->errorList->error->errorCode == "PER_SECOND_THRESHOLD")
 				{
-					shell_exec('echo `date` ' . $xml->errorList->error->errorCode . " : " .  $xml->errorList->error->errorMessage .  ' >> mattype_errors.log');
-					if($xml->errorsExist->errorList->error->errorCode == "DAILY_THRESHOLD" || $xml->errorsExist->errorList->error->errorCode == "PER_SECOND_THRESHOLD")
-					{
-						exit;
-					}
+					exit;
 				}
-				else
-				{	
-					return $xml;
-				}
+			}
+			else
+			{	
+				return $xml;
+			}
 	        }
 	        catch(Exception $exception)
 	        {
@@ -63,7 +66,7 @@
 			$xml = new SimpleXMLElement($response);
 			if ($xml->errorsExist == "true" )
 			{
-				shell_exec('echo `date` ' . $xml->errorList->error->errorCode . " : " .  $xml->errorList->error->errorMessage .  ' >> swapid_error.log');
+				shell_exec('echo `date` ' . $xml->errorList->error->errorCode . " : " .  $xml->errorList->error->errorMessage .  ' >> swapids_errors.log');
 			}
 			else
 			{
@@ -126,22 +129,23 @@
 		
 ***************
 */		
-	$ini_array = parse_ini_file("swapids.ini");
+	$swap_ini = $argv[3];
+	$ini_array = parse_ini_file($swap_ini);
 
 	$key= $ini_array['apikey'];
 	$baseurl = $ini_array['baseurl'];
 	$campuscode = $ini_array['campuscode'];
 	$total_patrons = $ini_array['total_users'];
 	$id_type_to_swap = $ini_array['id_type_to_swap'];
-	$total_patrons = 5;
 	
 	// Setting the initial API parameters: start at 0, offset 0
-	$limit = 5;
-	$offset = 19;
+	$limit = 100;
+	$offset = $argv[1];
+	$total_patrons = $argv[2]; // always 5000
+
 
 	for($i=0; $i<=$total_patrons; $i+=$limit)
 	{
-		echo 'i: ' . $i . PHP_EOL;
 		$url =  $baseurl . '/almaws/v1/users?apikey='.$key.'&limit='.$limit.'&offset='.$offset; 
 		$xml = getxml($url);
 		
@@ -153,7 +157,7 @@
 			*/
 			$primary_id = $user->primary_id.'';
 			echo $primary_id . PHP_EOL;
-			if(strlen($primary_id) > 0)
+			if((strlen($primary_id) > 0)  && !(preg_match('/\s/',$primary_id) ) && !((preg_match('/;/',$primary_id))))
 			{
 
 				$userurl = $baseurl . '/almaws/v1/users/' . $primary_id . '?apikey='.$key;
@@ -211,7 +215,7 @@
 					*/
 					
 					// Check if there is an additional ID that should be swapped, and that our original ID is not currently already swapped
-					if ($swap && preg_match("/[A-Za-z]/",$primary_id))
+					if ($swap && preg_match("/[A-Za-z]/",$primary_id) && (strlen($primary_id) > 2) )
 					{
 									
 						// First get/put 
@@ -237,7 +241,8 @@
 						$puturl = $baseurl . '/almaws/v1/users/' . $primary_id .'?user_id_type=all_unique&apikey='.$key;
 						echo $puturl . PHP_EOL;
 						$response = putxml($puturl,$return_xml);										
-					
+						shell_exec('echo `date` Removed old additional ID: ' .$new_primary . ', for : ' .$old_primary . ' >> swapids_errors.log');
+
 					
 						// Second get/put
 						$updated_user_url = $baseurl . '/almaws/v1/users/' . $primary_id . '?apikey='.$key;
@@ -246,7 +251,6 @@
 						$updated_user_xml->primary_id = $new_primary;
 						$updated_return_xml = makexml($updated_user_xml);
 						$second_response = putxml($puturl,$updated_return_xml);
-					//	var_dump($second_response);
 					
 					
 						// Third get/put to user API, additional of final original ID to additional ID field 
@@ -281,18 +285,3 @@
 	}	
 
 ?>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
