@@ -1,5 +1,5 @@
 #!/bin/bash
-
+#takes in swapids.ini file with the configuration settings for the campus
 ini_file="$1"
 patronchunk=5000 #batches of 5000 patrons at a time
 totalpatrons=26740
