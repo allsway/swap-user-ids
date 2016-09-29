@@ -29,6 +29,7 @@ Use spawn_swapids.sh to run over all users in your system. Defaults to running c
 
 Run as 
 `sh spawn_swapids swapids.ini`
+
 Single run as 
 `nohup php ./swapids_xml.php {offset} {total number of patrons you want to update} swapids.ini > logfile.out &`
 
