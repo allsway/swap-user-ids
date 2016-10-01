@@ -5,6 +5,10 @@
 	
 */
 
+<?php
+	
+
+
 /*
 ***************
 
@@ -22,25 +26,25 @@
 	        try
 	        {
 	        	// Check for limit error
-			$xml = new SimpleXMLElement($result);
-			if ($xml->errorsExist == "true" )
-			{
-				shell_exec('echo `date` ' . $xml->errorList->error->errorCode . " : " .  $xml->errorList->error->errorMessage .  ' >> mattype_errors.log');
-				if($xml->errorList->error->errorCode == "DAILY_THRESHOLD" || $xml->errorList->error->errorCode == "PER_SECOND_THRESHOLD")
+				$xml = new SimpleXMLElement($result);
+				if ($xml->errorsExist == "true" )
 				{
-					exit;
+					shell_exec('echo `date` ' . $xml->errorList->error->errorCode . " : " .  $xml->errorList->error->errorMessage .  ' >> mattype_errors.log');
+					if($xml->errorList->error->errorCode == "DAILY_THRESHOLD" || $xml->errorList->error->errorCode == "PER_SECOND_THRESHOLD")
+					{
+						exit;
+					}
 				}
-			}
-			else
-			{	
-				return $xml;
-			}
+				else
+				{	
+					return $xml;
+				}
 	        }
 	        catch(Exception $exception)
 	        {
-	        	shell_exec('echo `date`  ' . $url . ' >> swapids_error.log');
+	        	shell_exec('echo `date`  ' . $url . ' >> swapids_errors.log');
 	        	echo $exception;
-	        	shell_exec('echo `date` ' . $exception . ' >> swapids_error.log');
+	        	shell_exec('echo `date` ' . $exception . ' >> swapids_errors.log');
 
 	        }
 	}
@@ -110,12 +114,12 @@
 	
 ***************	
 */	
-	function addidentifier($xml,$primary_id)
+	function addidentifier($xml,$primary_id,$new_id_type)
 	{
 		$new_identifier = $xml->user_identifiers->addChild('user_identifier');
 		$new_identifier->addAttribute('segment_type', 'External');
-		$id_type = $new_identifier->addChild('id_type', 'OTHER_ID_2');
-		$id_type->addAttribute('desc', 'Additional ID 2');
+		$id_type = $new_identifier->addChild('id_type', $new_id_type);
+		$id_type->addAttribute('desc', 'Additional ID 3');
 		$value = $new_identifier->addChild('value',$primary_id);
 		$status = $new_identifier->addChild('status','ACTIVE');
 		return $xml;
@@ -137,6 +141,7 @@
 	$campuscode = $ini_array['campuscode'];
 	$total_patrons = $ini_array['total_users'];
 	$id_type_to_swap = $ini_array['id_type_to_swap'];
+	$new_id_type = $ini_array['new_id_type'];
 	
 	// Setting the initial API parameters: start at 0, offset 0
 	$limit = 100;
@@ -159,11 +164,9 @@
 			echo $primary_id . PHP_EOL;
 			if((strlen($primary_id) > 0)  && !(preg_match('/\s/',$primary_id) ) && !((preg_match('/;/',$primary_id))))
 			{
-
 				$userurl = $baseurl . '/almaws/v1/users/' . $primary_id . '?apikey='.$key;
 				$patron_xml = getxml($userurl);
 			
-				$match = 0;
 				$count = 0;
 
 		
@@ -177,17 +180,20 @@
 							$count++;
 						}
 					}	
+					echo "Count: " . $count . PHP_EOL;
 					foreach($patron_xml->user_identifiers->user_identifier as $user_identifier)
 					{
-						$j = 0;
 						if($count == 1)
 						{
 							if($user_identifier->id_type == $id_type_to_swap)
 							{
 								$new_primary = $user_identifier->value.'';
-								$swap = true; 
-								$j++;
-								$match = $j;
+								if( preg_match("/[A-Za-z]/",$primary_id) && (strlen($new_primary) > 2) && !(preg_match('/[#$%@*() \/{}?]/',$new_primary)))
+								{
+									$dom = dom_import_simplexml($user_identifier);
+									$dom->parentNode->removeChild($dom);
+									$swap = true; 
+								}
 							}
 
 						}
@@ -204,6 +210,7 @@
 							// This doesn't actually exist in practice.  
 							shell_exec('echo `date` Multiple '.$id_type_to_swap.' fields found for ' . $primary_id . ' >> swapids_errors.log'); 
 						}
+
 					}				
 					/*
 						Swap ids
@@ -215,33 +222,19 @@
 					*/
 					
 					// Check if there is an additional ID that should be swapped, and that our original ID is not currently already swapped
-					if ($swap && preg_match("/[A-Za-z]/",$primary_id) && (strlen($primary_id) > 2) )
+					if ($swap)
 					{
 									
 						// First get/put 
-						//Remove second identifier
-						echo PHP_EOL . "Match: " .  $match . PHP_EOL;
-						var_dump($patron_xml->user_identifiers->user_identifier[$match]);
-						var_dump($patron_xml->user_identifiers->user_identifier);
-						
-						if((count($patron_xml->user_identifiers->user_identifier) == 1) && ($match==1) )
-						{
-							$dom = dom_import_simplexml($patron_xml->user_identifiers->user_identifier);
-							$dom->parentNode->removeChild($dom);
-
-						}
-						else
-						{
-							$dom = dom_import_simplexml($patron_xml->user_identifiers->user_identifier[$match]);
-							$dom->parentNode->removeChild($dom);
-						}
+						// Remove second identifier
+						var_dump($patron_xml);						
 					
-					
+				
 						$return_xml =  makexml($patron_xml);
 						$puturl = $baseurl . '/almaws/v1/users/' . $primary_id .'?user_id_type=all_unique&apikey='.$key;
 						echo $puturl . PHP_EOL;
 						$response = putxml($puturl,$return_xml);										
-						shell_exec('echo `date` Removed old additional ID: ' .$new_primary . ', for : ' .$old_primary . ' >> swapids_errors.log');
+						shell_exec('echo `date` Removed old additional ID: ' .$new_primary . ', for : ' .$primary_id . ' >> swapids_errors.log');
 
 					
 						// Second get/put
@@ -256,10 +249,9 @@
 						// Third get/put to user API, additional of final original ID to additional ID field 
 						$new_user_url = $baseurl . '/almaws/v1/users/' . $new_primary . '?apikey='.$key;
 						$second_xml = getxml($new_user_url);
-
-						$second_xml = addidentifier($second_xml,$primary_id);
+						//var_dump($second_xml);
+						$second_xml = addidentifier($second_xml,$primary_id,$new_id_type);
 						$third_return_xml = makexml($second_xml);
-					//	var_dump($third_return_xml);
 						$final_response = putxml($new_user_url,$third_return_xml);
 
 						shell_exec('echo `date` Successful swap for user old primary: ' .$primary_id . ', New primary: ' .$new_primary . ' >> swapids_errors.log');
@@ -285,3 +277,6 @@
 	}	
 
 ?>
+
+
+
