@@ -1,13 +1,13 @@
 # swap-user-ids
 Switches user primary ID with university ID
 
-####swapids_xml.php
+#### swapids_xml.php
 Takes as arguemnts:
    - offset value
    - total number of patrons that should be updated on that call (~16 records update per minute)
    - swapids.ini
    
-####swapids.ini
+#### swapids.ini
 ```
 ;Campus API key
 apikey = ""
@@ -21,7 +21,7 @@ id_type_to_swap = ""
 new_id_type = ""
 ```
 
-####spawn_swapids.sh
+#### spawn_swapids.sh
 Takes as argument:
    - swapids.ini
 
@@ -33,9 +33,9 @@ Run as
 Single run as 
 `nohup php ./swapids_xml.php {offset} {total number of patrons you want to update} swapids.ini > logfile.out &`
 
-#####swapids_errors.log
+##### swapids_errors.log
 Logs all successful ID swaps, and failures due to validiation of the data
 
-#####logfile{num}.out
+##### logfile{num}.out
 Logs any xml rendering errors, php fatal errors. 
 
